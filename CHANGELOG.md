@@ -1,5 +1,18 @@
 # CHANGELOG
 
+## 7.0.0
+
+* Swift 4.2 support.
+* Fixed some issues when reusing instances previously resolved as optionals.
+* Dip-UI is now part of Dip.
+
+## 6.1
+
+* Swift 4.1 support.
+* Fixed crashes resolving singletons using collaborating containers.
+  [#179](https://github.com/AliSoftware/Dip/pull/179), [@trimmurrti](https://github.com/trimmurrti)
+  [#182](https://github.com/AliSoftware/Dip/pull/182), [@tapsandswipes](https://github.com/tapsandswipes)
+
 ## 6.0
 
 * Swift 4 support

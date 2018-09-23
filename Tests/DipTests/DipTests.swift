@@ -30,7 +30,7 @@ private class ServiceImp1: Service { }
 private class ServiceImp2: Service { }
 
 private protocol Server: class {
-  weak var client: Client! { get }
+  var client: Client! { get }
 }
 private protocol Client: class {
   var server: Server! { get }
@@ -70,6 +70,7 @@ class DipTests: XCTestCase {
       ("testThatCollaboratingWithSelfIsIgnored", testThatCollaboratingWithSelfIsIgnored),
       ("testThatCollaboratingContainersAreWeakReferences", testThatCollaboratingContainersAreWeakReferences),
       ("testThatCollaboratingContainersReuseInstancesResolvedByAnotherContainer", testThatCollaboratingContainersReuseInstancesResolvedByAnotherContainer),
+      ("testThatItCanHandleSeparateContainersAndTheirCollaboration", testThatItCanHandleSeparateContainersAndTheirCollaboration)
     ]
   }()
 
@@ -123,12 +124,6 @@ class DipTests: XCTestCase {
     
     //then
     XCTAssertTrue(optService is ServiceImp1)
-    
-    //and when
-    let impService = try! container.resolve((Service!).self)
-    
-    //then
-    XCTAssertTrue(impService is ServiceImp1)
   }
   
   func testThatItResolvesInstanceRegisteredWithTag() {
@@ -152,12 +147,6 @@ class DipTests: XCTestCase {
     
     //then
     XCTAssertTrue(optService is ServiceImp1)
-    
-    //and when
-    let impService = try! container.resolve((Service!).self, tag: "service")
-    
-    //then
-    XCTAssertTrue(impService is ServiceImp1)
   }
   
   func testThatItResolvesDifferentInstancesRegisteredForDifferentTags() {
@@ -188,14 +177,6 @@ class DipTests: XCTestCase {
     //then
     XCTAssertTrue(optService1 is ServiceImp1)
     XCTAssertTrue(optService2 is ServiceImp2)
-  
-    //and when
-    let impService1 = try! container.resolve((Service!).self, tag: "service1")
-    let impService2 = try! container.resolve((Service!).self, tag: "service2")
-    
-    //then
-    XCTAssertTrue(impService1 is ServiceImp1)
-    XCTAssertTrue(impService2 is ServiceImp2)
   }
   
   func testThatNewRegistrationOverridesPreviousRegistration() {
@@ -241,12 +222,6 @@ class DipTests: XCTestCase {
     XCTAssertTrue(resolveDependenciesCalled)
 
     resolveDependenciesCalled = false
-    
-    //and when
-    let _ = try! container.resolve((Service!).self)
-    
-    //then
-    XCTAssertTrue(resolveDependenciesCalled)
   }
   
   func testThatItThrowsErrorIfCanNotFindDefinitionForType() {
@@ -829,5 +804,55 @@ extension DipTests {
     XCTAssertEqual(client2.name, "2")
     XCTAssertTrue(client1.service === client2.service)
   }
+}
 
+class Manager {}
+class AnotherManager {}
+
+class Object {
+  let manager: Manager?
+  
+  init(with container: DependencyContainer) {
+    self.manager = try? container.resolve()
+  }
+}
+
+class Owner {
+  var manager: Manager?
+}
+
+extension DipTests {
+  func testThatItCanHandleSeparateContainersAndTheirCollaboration() {
+    let container = self.container
+    
+    let anotherContainer = DependencyContainer()
+    anotherContainer.register { Object(with: anotherContainer) }
+    
+    container.collaborate(with: anotherContainer)
+    
+    container
+      .register { Owner() }
+      .resolvingProperties { $1.manager = try $0.resolve() }
+    
+    container.register(.singleton) { AnotherManager() }
+    container.register(.singleton) { Manager() }
+    
+    let manager: Manager? = try? container.resolve()
+    let another: AnotherManager? = try? container.resolve()
+    var owner: Owner? = try? container.resolve(arguments: 1, "")
+    
+    let object: Object? = try? container.resolve()
+    owner = try? container.resolve()
+    
+    let nonNilValues: [Any?] = [another, manager, owner, object, object?.manager]
+    nonNilValues.forEach { XCTAssertNotNil($0) }
+    
+    XCTAssertTrue(
+      owner?.manager
+        .flatMap { value in
+          manager.flatMap { $0 === value }
+        }
+        ?? false
+    )
+  }
 }
